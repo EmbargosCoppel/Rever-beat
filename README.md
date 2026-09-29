@@ -1,4 +1,4 @@
-# Rhythm Game
+# Rever-beat
 
 A simple rhythm game that utilizes strategies described in the article
 ["Sync the gameplay with audio and music"](https://docs.godotengine.org/en/stable/tutorials/audio/sync_with_audio.html).
