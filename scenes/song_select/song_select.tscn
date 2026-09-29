@@ -1,0 +1,168 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/song_select/song_select.gd" id="1_script"]
+[ext_resource type="Theme" path="res://ui/game_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/generated/ui_logo.png" id="3_logo"]
+
+[node name="SongSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+theme = ExtResource("2_theme")
+
+[node name="VideoStreamPlayer" type="VideoStreamPlayer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand = true
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.109804, 0.109804, 0.129412, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(660, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Logo" type="TextureRect" parent="CenterContainer/VBox"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("3_logo")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "SELECCIONA UNA CANCION"
+horizontal_alignment = 1
+
+[node name="SongsList" type="ItemList" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(660, 200)
+layout_mode = 2
+size_flags_vertical = 3
+text_overrun_behavior = 3
+
+[node name="TimingBox" type="HBoxContainer" parent="CenterContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="BpmLabel" type="Label" parent="CenterContainer/VBox/TimingBox"]
+layout_mode = 2
+text = "BPM:"
+
+[node name="BpmSpin" type="SpinBox" parent="CenterContainer/VBox/TimingBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+min_value = 20.0
+max_value = 400.0
+step = 0.001
+value = 116.052
+rounded = false
+
+[node name="OffsetLabel" type="Label" parent="CenterContainer/VBox/TimingBox"]
+layout_mode = 2
+text = "Offset (ms):"
+
+[node name="OffsetSpin" type="SpinBox" parent="CenterContainer/VBox/TimingBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+min_value = -5000.0
+max_value = 30000.0
+value = 8283.0
+
+[node name="TapButton" type="Button" parent="CenterContainer/VBox/TimingBox"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Toca al ritmo de la cancion para estimar el BPM"
+text = "TAP"
+
+[node name="DifficultyBox" type="HBoxContainer" parent="CenterContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="DifficultyLabel" type="Label" parent="CenterContainer/VBox/DifficultyBox"]
+layout_mode = 2
+text = "Dificultad:"
+
+[node name="DifficultyOption" type="OptionButton" parent="CenterContainer/VBox/DifficultyBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+
+[node name="KeysLabel" type="Label" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Teclas: D F J K"
+horizontal_alignment = 1
+
+[node name="NowPlayingLabel" type="Label" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+text = "Pasa el cursor por encima para escuchar una muestra."
+horizontal_alignment = 1
+text_overrun_behavior = 3
+clip_text = true
+
+[node name="Buttons" type="GridContainer" parent="CenterContainer/VBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 10
+columns = 2
+
+[node name="PlayButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "JUGAR"
+
+[node name="AddButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ANADIR CANCION"
+
+[node name="EditButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "EDITAR CHART"
+
+[node name="BackButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "VOLVER"
+
+[node name="PreviewPlayer" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+volume_db = -6.0
+
+[node name="FileDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true

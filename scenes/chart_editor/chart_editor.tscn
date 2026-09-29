@@ -1,0 +1,156 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scenes/chart_editor/chart_editor.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://bulc5hfbdv74n" path="res://game_state/conductor.gd" id="2_conductor"]
+[ext_resource type="Theme" path="res://ui/game_theme.tres" id="3_theme"]
+[ext_resource type="Texture2D" path="res://assets/generated/ui_logo.png" id="4_logo"]
+
+[node name="ChartEditor" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+theme = ExtResource("3_theme")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.109804, 0.109804, 0.129412, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(720, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Logo" type="TextureRect" parent="CenterContainer/VBox"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("4_logo")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "EDITOR DE CHART"
+horizontal_alignment = 1
+
+[node name="SongLabel" type="Label" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Cancion:"
+horizontal_alignment = 1
+
+[node name="TimingBox" type="HBoxContainer" parent="CenterContainer/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="BpmLabel" type="Label" parent="CenterContainer/VBox/TimingBox"]
+layout_mode = 2
+text = "BPM:"
+
+[node name="BpmSpin" type="SpinBox" parent="CenterContainer/VBox/TimingBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+min_value = 20.0
+max_value = 400.0
+step = 0.001
+value = 120.0
+rounded = false
+
+[node name="OffsetLabel" type="Label" parent="CenterContainer/VBox/TimingBox"]
+layout_mode = 2
+text = "Offset (ms):"
+
+[node name="OffsetSpin" type="SpinBox" parent="CenterContainer/VBox/TimingBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+min_value = -5000.0
+max_value = 30000.0
+value = 0.0
+
+[node name="BeatLabel" type="Label" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Beat: 0.00"
+horizontal_alignment = 1
+
+[node name="LaneBox" type="HBoxContainer" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Timeline" type="Control" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(700, 48)
+layout_mode = 2
+
+[node name="InfoLabel" type="Label" parent="CenterContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Notas: 0"
+horizontal_alignment = 1
+
+[node name="Buttons" type="GridContainer" parent="CenterContainer/VBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 10
+columns = 3
+
+[node name="RecButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "GRABAR"
+
+[node name="StopButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "PARAR"
+
+[node name="UndoButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "DESHACER"
+
+[node name="ClearButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "BORRAR"
+
+[node name="SaveButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "GUARDAR"
+
+[node name="BackButton" type="Button" parent="CenterContainer/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "VOLVER"
+
+[node name="Conductor" type="Node" parent="." node_paths=PackedStringArray("player")]
+script = ExtResource("2_conductor")
+player = NodePath("../Player")
+
+[node name="Player" type="AudioStreamPlayer" parent="."]

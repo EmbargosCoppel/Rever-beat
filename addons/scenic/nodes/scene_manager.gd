@@ -1,0 +1,345 @@
+@icon("res://addons/scenic/icons/layers.svg")
+class_name SceneManager extends Node
+
+#region constants
+const SCENE_ADD_QUEUED_INFO: String = 			"[Scenic] %s queued for creation"
+const SCENE_RELOAD_QUEUED_INFO: String = 		"[Scenic] %s queued for reloading"
+const SCENE_REMOVE_QUEUED_INFO: String = 		"[Scenic] %s queued for deletion"
+const SCENE_INSTANTIATED_INFO: String = 		"[Scenic] %s instantiated"
+const SCENE_RELOADED_INFO: String = 			"[Scenic] %s reloaded"
+const SCENE_FREED_INFO: String = 				"[Scenic] %s freed"
+const APPLY_SCENE_DELTAS_INFO: String = 		"[Scenic] Applying scene deltas"
+const SCENE_ADD_EXISTS_WARNING: String = 		"[Scenic] Attempted to add a scene when it was already added and not queued for removal"
+const SCENE_RELOAD_NOT_EXISTS_WARNING: String = "[Scenic] Attempted to reload a scene that was not added"
+const SCENE_REMOVE_NOT_EXISTS_WARNING: String = "[Scenic] Attempted to remove a scene that was not added"
+const SCENE_NOT_PRELOADED_WARNING: String = 	"[Scenic] %s had not started loading before _apply_scene_deltas was called"
+const INVALID_OWNER_ERROR: String = 			"[Scenic] Invalid scene owner %s. Must be \"Global\" or the name of a currently loaded scene (%d scenes currently loaded)"
+const INVALID_TIME_SCALE_ERROR: String = 		"[Scenic] Invalid time scale %s. Setting time scale to 1.0"
+const SCENE_ADD_IN_PROGRESS_ERROR: String = 	"[Scenic] Attempted to queue a scene add operation while a scene change was in progress"
+const SCENE_RELOAD_IN_PROGRESS_ERROR: String = 	"[Scenic] Attempted to queue a scene reload operation while a scene change was in progress"
+const SCENE_REMOVE_IN_PROGRESS_ERROR: String = 	"[Scenic] Attempted to queue a scene remove operation while a scene change was in progress"
+const SCENE_SET_IN_PROGRESS_ERROR: String = 	"[Scenic] Attempted to queue a scene set operation while a scene change was in progress"
+
+#region enums
+enum SceneChangeState {
+	NONE,
+	IN_PROGRESS
+}
+
+#region exports
+@export var global: bool = true
+@export var _scenes: Dictionary = {} #{<scene_name>: <scene_info>}
+
+#region references
+var _scene_parent: Node = null
+var _active_scenes: Dictionary = {} #{<scene_name>: <scene_info>}
+var _transitions: Dictionary = {}
+
+#region state
+var _state: SceneChangeState = SceneChangeState.NONE
+var _queue_add: Dictionary = {} #{<scene_name>: {info: <scene_info>, data: <data>}}
+var _queue_reload: Dictionary = {} #{<scene_name>: {info: <scene_info>, data: <data>}}
+var _queue_remove: Dictionary = {} #{<scene_name>: <scene_info>}
+var _currently_loading: Dictionary = {} #{<scene_name>: <scene_info>}
+var _force_loaded: Dictionary = {&"Global": {}} #{<owner_scene_name>: {<scene_name>: null}}
+var _loaded_scenes_count: int = 0
+var _active_scenes_count: int = 0
+
+#region node_events
+func _ready() -> void:
+	_create_scene_parent()
+	
+	if global:
+		GlobalSceneManager.register_scene_manager(self)
+	
+	queue_remove_scenes()
+	for scene_info in _scenes.values():
+		if scene_info.initial:
+			queue_add_scene(scene_info.name)
+	apply()
+
+func _exit_tree() -> void:
+	if global:
+		GlobalSceneManager.unregister_scene_manager(self)
+
+func _process(_delta: float) -> void:
+	_poll_currently_loading()
+
+#region public_functions
+func force_load(scene_name: StringName, scene_owner: StringName = &"Global") -> void:
+	if scene_owner != &"Global" && !_active_scenes.has(scene_owner):
+		push_error(INVALID_OWNER_ERROR % [scene_owner, _active_scenes.size()])
+		return
+	
+	var scene_info = _get_scene_info_by_name(scene_name)
+	_force_loaded.get(scene_owner).set(scene_name, null)
+	
+	if scene_info.get_state() != SceneInfo.SceneLoadingState.LOADED:
+		_load_scene(scene_info)
+
+func force_unload(scene_name: StringName) -> void:
+	var scene_info = _get_scene_info_by_name(scene_name)
+	
+	if scene_info.owner == &"":
+		return
+	
+	_force_loaded.get(scene_info.owner).erase(scene_name)
+	scene_info.owner = &""
+	
+	if !_active_scenes.has(scene_name):
+		_unload_scene(scene_info)
+
+func queue_add_scene(scene_name: StringName, data: Variant = null) -> void:
+	if _state == SceneChangeState.IN_PROGRESS:
+		push_error(SCENE_ADD_IN_PROGRESS_ERROR)
+		return
+	
+	if _queue_remove.has(scene_name):
+		_queue_remove.erase(scene_name)
+	elif !_active_scenes.has(scene_name):
+		var scene_info = _get_scene_info_by_name(scene_name)
+		_queue_add.set(scene_name, {"info": scene_info, "data": data})
+		
+		print_verbose(SCENE_ADD_QUEUED_INFO % scene_name)
+		
+		if scene_info.get_state() != SceneInfo.SceneLoadingState.LOADED:
+			_load_scene(scene_info)
+	else:
+		push_warning(SCENE_ADD_EXISTS_WARNING)
+
+func queue_add_scenes(scene_names: Array[StringName], datas: Array[Variant] = []) -> void:
+	if _state == SceneChangeState.IN_PROGRESS:
+		push_error(SCENE_REMOVE_IN_PROGRESS_ERROR)
+		return
+	
+	for i in range(scene_names.size()):
+		var scene_name = scene_names[i]
+		var data = datas[i] if i < datas.size() else null
+		
+		queue_add_scene(scene_name, data)
+
+func queue_reload_scene(scene_name: StringName, data: Variant = null) -> void:
+	if _state == SceneChangeState.IN_PROGRESS:
+		push_error(SCENE_RELOAD_IN_PROGRESS_ERROR)
+		return
+	
+	if _queue_remove.has(scene_name):
+		_queue_remove.erase(scene_name)
+	elif _active_scenes.has(scene_name):
+		var scene_info = _get_scene_info_by_name(scene_name)
+		_queue_reload.set(scene_name, {"info": scene_info, "data": data})
+		
+		print_verbose(SCENE_RELOAD_QUEUED_INFO % scene_name)
+	else:
+		push_warning(SCENE_RELOAD_NOT_EXISTS_WARNING)
+
+func queue_reload_scenes(scene_names: Array[StringName], datas: Array[Variant] = []) -> void:
+	if _state == SceneChangeState.IN_PROGRESS:
+		push_error(SCENE_REMOVE_IN_PROGRESS_ERROR)
+		return
+	
+	for i in range(scene_names.size()):
+		var scene_name = scene_names[i]
+		var data = datas[i] if i < datas.size() else null
+		
+		queue_reload_scene(scene_name, data)
+
+func queue_remove_scene(scene_name: StringName) -> void:
+	if _state == SceneChangeState.IN_PROGRESS:
+		push_error(SCENE_REMOVE_IN_PROGRESS_ERROR)
+		return
+	
+	if _queue_add.has(scene_name):
+		_queue_add.erase(scene_name)
+	elif _active_scenes.has(scene_name):
+		if _queue_reload.has(scene_name):
+			_queue_reload.erase(scene_name)
+		
+		var scene_info = _get_scene_info_by_name(scene_name)
+		_queue_remove.set(scene_name, scene_info)
+		
+		print_verbose(SCENE_REMOVE_QUEUED_INFO % scene_name)
+	else:
+		push_warning(SCENE_REMOVE_NOT_EXISTS_WARNING)
+
+func queue_remove_scenes(exclude_tags: Array[String] = []) -> void:
+	if _state == SceneChangeState.IN_PROGRESS:
+		push_error(SCENE_REMOVE_IN_PROGRESS_ERROR)
+		return
+	
+	for scene_info in _active_scenes.values():
+		var should_remove = true
+		for tag in exclude_tags:
+			if scene_info.get_instance().has_tag(tag):
+				should_remove = false
+				break
+		
+		if should_remove:
+			queue_remove_scene(scene_info.name)
+
+func queue_set_scene(scene_name: StringName, data: Variant = null, exclude_tags: Array[String] = []) -> void:
+	if _state == SceneChangeState.IN_PROGRESS:
+		push_error(SCENE_SET_IN_PROGRESS_ERROR)
+		return
+	
+	queue_remove_scenes(exclude_tags)
+	queue_add_scene(scene_name, data)
+
+func apply() -> void:
+	_state = SceneChangeState.IN_PROGRESS
+	
+	await _apply_scene_deltas()
+	
+	_state = SceneChangeState.NONE
+
+func with_transition(in_transition: StringName, in_time_scale: float = 1.0, out_transition: StringName = &"", out_time_scale: float = -1.0) -> void:
+	with_transition_callback(func (): pass, in_transition, in_time_scale, out_transition, out_time_scale)
+
+func with_transition_callback(callback: Callable, in_transition: StringName, in_time_scale: float = 1.0, out_transition: StringName = &"", out_time_scale: float = -1.0) -> void:
+	_state = SceneChangeState.IN_PROGRESS
+	
+	var transition = _get_transition_by_name(in_transition)
+	var time_scale = in_time_scale
+	if time_scale <= 0.0:
+		push_error(INVALID_TIME_SCALE_ERROR % time_scale)
+		time_scale = 1.0
+	
+	await transition.transition_in(time_scale)
+	
+	await callback.call()
+	
+	await _apply_scene_deltas()
+	
+	if out_transition != &"":
+		transition = _get_transition_by_name(out_transition)
+		transition.set_in()
+	if out_time_scale > 0.0:
+		time_scale = out_time_scale
+	
+	await transition.transition_out(time_scale)
+	
+	_state = SceneChangeState.NONE
+
+func register_transition(transition: SceneTransition) -> void:
+	_transitions.set(transition.name, transition)
+
+func unregister_transition(transition: SceneTransition) -> void:
+	_transitions.erase(transition.name)
+
+func get_loaded_scenes_count() -> int:
+	return _loaded_scenes_count
+
+func get_active_scenes_count() -> int:
+	return _active_scenes_count
+
+#region private_functions
+func _create_scene_parent() -> void:
+	_scene_parent = Node.new()
+	_scene_parent.name = &"SceneParent"
+	add_child(_scene_parent)
+
+func _get_scene_info_by_name(scene_name: StringName) -> SceneInfo:
+	return _scenes.get(scene_name)
+
+func _get_transition_by_name(transition_name: StringName) -> SceneTransition:
+	return _transitions.get(transition_name)
+
+func _poll_currently_loading() -> void:
+	for scene_name in _currently_loading.keys():
+		var scene_info = _get_scene_info_by_name(scene_name)
+		
+		scene_info.poll_loading_progress()
+		if scene_info.get_state() != SceneInfo.SceneLoadingState.LOADING:
+			_currently_loading.erase(scene_name)
+			_loaded_scenes_count += 1
+
+func _wait_for_queued_scenes_to_load() -> void:
+	for scene_value in _queue_add.values():
+		var scene_info = scene_value["info"]
+		if scene_info.get_state() == SceneInfo.SceneLoadingState.NOT_LOADED:
+			push_warning(SCENE_NOT_PRELOADED_WARNING % scene_info.name)
+			_load_scene(scene_info) # This is just a fallback incase it didn't start loading when queued
+		
+		if scene_info.get_state() != SceneInfo.SceneLoadingState.LOADED:
+			await scene_info.loaded_scene
+
+func _apply_scene_deltas() -> void:
+	await _wait_for_queued_scenes_to_load()
+	
+	print_verbose(APPLY_SCENE_DELTAS_INFO)
+	
+	for scene_value in _queue_reload.values():
+		_reload_scene(scene_value["info"], scene_value["data"])
+	
+	for scene_value in _queue_add.values():
+		_add_scene(scene_value["info"], scene_value["data"])
+	
+	for scene_info in _queue_remove.values():
+		_remove_scene(scene_info)
+	
+	_queue_reload.clear()
+	_queue_add.clear()
+	_queue_remove.clear()
+
+func _load_scene(scene_info: SceneInfo) -> void:
+	scene_info.load_scene()
+	_currently_loading.set(scene_info.name, scene_info)
+
+func _unload_scene(scene_info: SceneInfo) -> void:
+	if scene_info.get_state() == SceneInfo.SceneLoadingState.LOADED:
+		_loaded_scenes_count -= 1
+	
+	scene_info.unload_scene()
+	_currently_loading.erase(scene_info.name)
+
+func _add_scene(scene_info: SceneInfo, data: Variant) -> void:
+	_active_scenes.set(scene_info.name, scene_info)
+	_force_loaded.set(scene_info.name, {})
+	
+	var scene = scene_info.instantiate()
+
+	scene.scene_manager = self
+	
+	print_verbose(SCENE_INSTANTIATED_INFO % scene_info.name)
+	
+	_active_scenes_count += 1
+	
+	scene._start(data)
+	_scene_parent.add_child(scene)
+
+func _reload_scene(scene_info: SceneInfo, data: Variant) -> void:
+	_scene_parent.remove_child(scene_info.get_instance())
+	scene_info.queue_free()
+	
+	_active_scenes.set(scene_info.name, scene_info)
+	_force_loaded.set(scene_info.name, {})
+	
+	var scene = scene_info.instantiate()
+
+	scene.scene_manager = self
+	
+	print_verbose(SCENE_RELOADED_INFO % scene_info.name)
+	
+	scene._start(data)
+	_scene_parent.add_child(scene)
+
+func _remove_scene(scene_info: SceneInfo) -> void:
+	_scene_parent.remove_child(scene_info.get_instance())
+	scene_info.queue_free()
+	
+	for owned_name in _force_loaded.get(scene_info.name):
+		if _active_scenes.has(owned_name):
+			continue
+		
+		var owned_info = _get_scene_info_by_name(owned_name)
+		_unload_scene(owned_info)
+	
+	if scene_info.owner != &"Global" && !_active_scenes.has(scene_info.owner):
+		_unload_scene(scene_info)
+	
+	_active_scenes.erase(scene_info.name)
+	_force_loaded.erase(scene_info.name)
+	
+	print_verbose(SCENE_FREED_INFO % scene_info.name)
+	
+	_active_scenes_count -= 1
